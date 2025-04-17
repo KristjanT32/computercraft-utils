@@ -133,8 +133,7 @@ function _host.create_host(monitor_side, modem_side, name)
 
     host.authenticate_sender = function(senderId)
         if (table.containsValue(host.data.authenticated_boards, senderId)) then return end
-
-        table.insert(host.data.authenticated_boards, senderId)
+        host.data.authenticated_boards[senderId] = senderId
         utils.persistence.save_data(host.data, "cibcs", "hostdata/host" .. host.id)
     end
 
@@ -202,16 +201,20 @@ function _host.create_host(monitor_side, modem_side, name)
                     getContent, error = load("return " .. content)
                     content = getContent()
 
-                    if (not host.is_sender_authenticated(client)) then
-                        printError("Cannot send display instructions to non-authenticated board #" .. client)
+                    if (client == nil) then
+                        printError("Invalid client ID: " .. args[2])
                     else
-                        if (content ~= nil and sizeof(content) > 0) then
-                            print("Display instruction sent")
-                            rednet.send(client, { command = "UPDATE!", origin = host.name, text = content },
-                                shared.protocols.dsp)
+                        if (not host.is_sender_authenticated(client)) then
+                            printError("Cannot send display instructions to non-authenticated board #" .. client)
                         else
-                            print("Clear instruction sent")
-                            rednet.send(client, { command = "CLEAR!", origin = host.name }, shared.protocols.dsp)
+                            if (content ~= nil and sizeof(content) > 0) then
+                                print("Display instruction sent")
+                                rednet.send(client, { command = "UPDATE!", origin = host.name, text = content },
+                                    shared.protocols.dsp)
+                            else
+                                print("Clear instruction sent")
+                                rednet.send(client, { command = "CLEAR!", origin = host.name }, shared.protocols.dsp)
+                            end
                         end
                     end
                 end
@@ -563,7 +566,8 @@ function _host.create_host(monitor_side, modem_side, name)
             print("===================================================")
             print("First time configuration required")
             print("===================================================")
-            print("Please type in a unique connection token. This will be used to identify information boards:")
+            print(
+                "To allow secure connections from boards, input a unique connection token - it will be used to authenticate incoming connections: ")
             host.data.connection_token = io.read()
 
             utils.persistence.save_data(host.data, "cibcs", "hostdata/host" .. host.id)

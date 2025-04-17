@@ -75,7 +75,7 @@ function _client.create_client(hostname, token, monitor_side, modem_side)
                         utils.logging.warning("Retrying authentication", "System")
                         goto ident
                     else
-                        print(content.command .. " from " .. content.origin)
+                        utils.logging.info("Received [" .. content.command .. "] from #" .. content.origin, "System")
                     end
                     if (id == client.host_id and content.origin == client.host_name) then
                         if (content.command == "WLCM!" or content.command == "FINE!") then
@@ -83,7 +83,8 @@ function _client.create_client(hostname, token, monitor_side, modem_side)
                                 true)
                             return true
                         elseif (content.command == "PSSFF!") then
-                            print("Couldn't authorize: " .. content.details .. " (" .. content.command .. ")")
+                            utils.logging.fatal("Couldn't authorize: " ..
+                                content.details .. " (received: " .. content.command .. ")")
                             shared.show_init_error(client.monitor, 1, "Initialization failed",
                                 "Connection failed (" .. content.command .. ")")
                             shared.show_init_error(client.monitor, 2, "Initialization failed",
