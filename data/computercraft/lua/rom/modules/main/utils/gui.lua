@@ -1200,8 +1200,8 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
     --- Sets the background color for the list view.
     --- @param color color The color of the background.
     function listView.setBackground(color)
-        if (colors.toBlit(color) == listView.backgroundColor) then return end
-        listView.backgroundColor = colors.toBlit(color)
+        if (colors.toBlit(color) == listView.bgColor) then return end
+        listView.bgColor = colors.toBlit(color)
         listView.shouldClear = true
     end
 
@@ -1250,9 +1250,10 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
 
     --- Clears the list view and causes a redraw.
     function listView.clear()
-        for i in ipairs(listView.items) do
-            table.remove(listView.items, i)
-        end
+        listView.items = {}
+        listView.itemPositions = {}
+        listView.scrollPosition = 1
+        listView.currentHighlightedElementIndex = -1
         listView.shouldClear = true
     end
 
@@ -1394,6 +1395,8 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
     function listView.draw(mon, from_y, to_y)
         local prevX, prevY = mon.getCursorPos()
         local monWidth, monHeight = mon.getSize()
+
+        listView.gui.counter.setVisible(listView.showTotal)
 
         listView.startY = from_y
         listView.endY = to_y
