@@ -1205,6 +1205,14 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         listView.shouldClear = true
     end
 
+    --- Sets the background color for the list view's header.
+    --- @param color color The color of the background for the header.
+    function listView.setHeaderBackground(color)
+        if (colors.toBlit(color) == listView.headerBg) then return end
+        listView.headerBg = colors.toBlit(color)
+        listView.shouldClear = true
+    end
+
     --- Adds an item to the list view.
     --- @param item string The text content of the item to add.
     function listView.addItem(item)
@@ -1272,6 +1280,66 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         if (showTotal == listView.showTotal) then return end
         listView.showTotal = showTotal
         listView.shouldClear = true
+    end
+
+    --- Gets the header of the list view.
+    --- @return string header The header text.
+    function listView.getHeader()
+        return listView.header
+    end
+
+    --- Gets the header text color of the list view.
+    --- @return color color The color of the header text.
+    function listView.getHeaderTextColor()
+        return colors.fromBlit(listView.headerTextColor)
+    end
+
+    --- Gets the item text color of the list view.
+    --- @return color color The color of the item text.
+    function listView.getItemColor()
+        return colors.fromBlit(listView.itemTextColor)
+    end
+
+    --- Gets the item background color.
+    --- @return color color The color of the item background.
+    function listView.getItemBgColor()
+        return colors.fromBlit(listView.itemBgColor)
+    end
+
+    --- Gets the selected item text color.
+    --- @return color color The color of the selected item text.
+    function listView.getSelectedItemColor()
+        return colors.fromBlit(listView.selectedItemColor)
+    end
+
+    --- Gets the selected item background color.
+    --- @return color color The color of the selected item background.
+    function listView.getSelectedItemBackground()
+        return colors.fromBlit(listView.selectedItemBgColor)
+    end
+
+    --- Gets the background color for the list view.
+    --- @return color color The color of the background.
+    function listView.getBackground()
+        return colors.fromBlit(listView.backgroundColor)
+    end
+
+    --- Gets the background color for the list view's header.
+    --- @return color color The color of the background for the header.
+    function listView.getHeaderBackground()
+        return colors.fromBlit(listView.headerBg)
+    end
+
+    --- Gets whether the list view's items are clickable.
+    --- @return boolean clickable Whether the list view's items are clickable.
+    function listView.getClickable()
+        return listView.clickable
+    end
+
+    --- Gets whether the list view's item counter is visible.
+    --- @return boolean showTotal Whether the item counter is visible.
+    function listView.getShowTotal()
+        return listView.showTotal
     end
 
     function listView.getClickedItem(x, y)
@@ -1491,11 +1559,24 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         setSelectedItemColor = listView.setSelectedItemColor,
         setSelectedItemBackground = listView.setSelectedItemBackground,
         setBackground = listView.setBackground,
+        setOnSelect = listView.setOnSelect,
+        setClickable = listView.setClickable,
+        setShowTotal = listView.setShowTotal,
+        setHeaderBackground = listView.setHeaderBackground,
+        getHeader = listView.getHeader,
+        getHeaderTextColor = listView.getHeaderTextColor,
+        getItemColor = listView.getItemColor,
+        getItemBgColor = listView.getItemBgColor,
+        getSelectedItemColor = listView.getSelectedItemColor,
+        getSelectedItemBackground = listView.getSelectedItemBackground,
+        getBackground = listView.getBackground,
+        getHeaderBackground = listView.getHeaderBackground,
+        getClickable = listView.getClickable,
+        getShowTotal = listView.getShowTotal,
         addItem = listView.addItem,
         removeItem = listView.removeItem,
         getItemIndex = listView.getItemIndex,
         clear = listView.clear,
-        setOnSelect = listView.setOnSelect,
         onclick = listView.onclick,
         draw = listView.draw,
         connect = listView.connect
