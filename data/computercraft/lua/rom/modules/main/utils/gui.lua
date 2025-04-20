@@ -1,4 +1,5 @@
 local m = require("utils.monutils")
+local l = require("utils.logging")
 
 --- @diagnostic disable
 
@@ -1613,6 +1614,11 @@ end
 function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, buttonColor, promptColor, promptTextColor)
     local keypad = {}
 
+    if (rows * columns > 9) then
+        l.fatal("Invalid parameters 'rows' or 'columns'. Keypad cannot have more than 9 buttons.", "GUI")
+        return {}
+    end
+
     keypad.rows = rows
     keypad.columns = columns
     keypad.length = maxLength
@@ -1647,68 +1653,84 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
     keypad.visibleOnScreen = true
 
 
-    -- Create the buttons and prompts
-    local buttonIndex = 1
-    for row = 1, rows do
-        for col = 1, columns do
-            local button = guilib.createButton(tostring(buttonIndex), colors.fromBlit(keypad.textColor),
-                colors.fromBlit(keypad.buttonColor),
-                colors.white)
+    -- Create buttons with numbers 1–9 first
+    local digit = 1
+    local totalDigits = 9
+    local buttonRow, buttonCol = 1, 1
 
-            button.setAction(function()
-                if (keypad.currentInput:len() >= keypad.length) then return end
-                keypad.currentInput = keypad.currentInput .. button.getText()
-                keypad.shouldRefresh = true
-            end)
+    while digit <= totalDigits do
+        local button = guilib.createButton(tostring(digit), colors.fromBlit(keypad.textColor),
+            colors.fromBlit(keypad.buttonColor), colors.white)
 
-            keypad.keypad.buttons[row][col] = button
-            if (buttonIndex == 9) then
-                break
-            end
-            buttonIndex = buttonIndex + 1
+        button.setAction(function()
+            if (#keypad.currentInput >= keypad.length) then return end
+            keypad.currentInput = keypad.currentInput .. button.getText()
+            keypad.shouldRefresh = true
+        end)
+
+        if not keypad.keypad.buttons[buttonRow] then
+            keypad.keypad.buttons[buttonRow] = {}
         end
+        keypad.keypad.buttons[buttonRow][buttonCol] = button
+
+        buttonCol = buttonCol + 1
+        if buttonCol > columns then
+            buttonCol = 1
+            buttonRow = buttonRow + 1
+        end
+
+        digit = digit + 1
     end
 
-    -- Create the '0', 'delete' and 'submit' buttons.
-    local specialButtonIndex = 1
-    keypad.keypad.buttons[rows + 1] = {}
-    for row = rows + 1, rows + 1 do
-        for col = 1, columns do
-            local button = guilib.createButton("", colors.fromBlit(keypad.textColor),
-                colors.fromBlit(keypad.buttonColor),
-                colors.white)
-
-            if (specialButtonIndex == 1) then
-                button.setText("0")
-                button.setAction(function()
-                    if (keypad.currentInput:len() >= keypad.length) then return end
-                    keypad.currentInput = keypad.currentInput .. button.getText()
-                    keypad.shouldRefresh = true
-                end)
-            elseif (specialButtonIndex == 2) then
-                button.setText("\171")
-                button.setBackgroundColor(colors.red)
-                button.setAction(function()
-                    if (keypad.currentInput:len() <= 1) then
-                        keypad.currentInput = ""
-                        keypad.shouldRefresh = true
-                        return
-                    end
-                    keypad.currentInput = string.sub(keypad.currentInput, 1, keypad.currentInput:len() - 1)
-                    keypad.shouldRefresh = true
-                end)
-            elseif (specialButtonIndex == 3) then
-                button.setText("\26")
-                button.setBackgroundColor(colors.green)
-                button.setAction(function()
-                    if (keypad.currentInput:len() == 0) then return end
-                    keypad.onSubmit(keypad.currentInput)
-                    keypad.currentInput = ""
-                    keypad.shouldRefresh = true
-                end)
+    -- Create '0', 'delete', and 'submit' buttons
+    local specialButtons = {
+        {
+            text = "0",
+            color = colors.fromBlit(keypad.buttonColor),
+            action = function(button)
+                if (#keypad.currentInput >= keypad.length) then return end
+                keypad.currentInput = keypad.currentInput .. button.getText()
+                keypad.shouldRefresh = true
             end
-            keypad.keypad.buttons[row][col] = button
-            specialButtonIndex = specialButtonIndex + 1
+        },
+        {
+            text = "\171", -- delete
+            color = colors.red,
+            action = function()
+                if (#keypad.currentInput <= 1) then
+                    keypad.currentInput = ""
+                else
+                    keypad.currentInput = string.sub(keypad.currentInput, 1, #keypad.currentInput - 1)
+                end
+                keypad.shouldRefresh = true
+            end
+        },
+        {
+            text = "\26", -- submit
+            color = colors.green,
+            action = function()
+                if (#keypad.currentInput == 0) then return end
+                keypad.onSubmit(keypad.currentInput)
+                keypad.currentInput = ""
+                keypad.shouldRefresh = true
+            end
+        }
+    }
+
+    for i, data in ipairs(specialButtons) do
+        local button = guilib.createButton(data.text, colors.fromBlit(keypad.textColor),
+            data.color, colors.white)
+        button.setAction(function() data.action(button) end)
+
+        if not keypad.keypad.buttons[buttonRow] then
+            keypad.keypad.buttons[buttonRow] = {}
+        end
+        keypad.keypad.buttons[buttonRow][buttonCol] = button
+
+        buttonCol = buttonCol + 1
+        if buttonCol > columns then
+            buttonCol = 1
+            buttonRow = buttonRow + 1
         end
     end
 
@@ -1732,6 +1754,10 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
                 m.clearBetween(mon, keypad.positions.prompt.startX, keypad.positions.prompt.endX,
                     keypad.positions.prompt.y)
                 m.clearBetween(mon, keypad.positions.label.startX, keypad.positions.label.endX, keypad.positions.label.y)
+
+                for y = y + 1, y + yOffset + (keypad.columns - 1), 1 do
+                    m.clearBetween(mon, x, x + rowWidth, y)
+                end
                 keypad.shouldClear = false
             end
 
@@ -1745,6 +1771,14 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
         end
 
         if (keypad.visible) then
+            -- Draw the background
+            for bgY = y + 1, y + yOffset + keypad.rows + 1, 1 do
+                for bgX = (centerX - rowWidth / 2) - 2, (centerX + rowWidth / 2) + 1, 1 do
+                    m.blit(mon, " ", bgX, bgY, colors.fromBlit(keypad.promptColor), colors.fromBlit(keypad.promptColor))
+                end
+            end
+
+
             keypad.keypad.prompt.setText(keypad.currentInput ..
                 string.rep("-", keypad.length - keypad.currentInput:len()))
 
@@ -1771,6 +1805,7 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
                     local buttonX = (start + (col - 1) * 2)
                     local buttonY = (y + yOffset) + (row - 1)
 
+                    if (keypad.keypad.buttons[row][col] == nil) then break end
                     -- Draw the button
                     keypad.keypad.buttons[row][col].draw(mon, math.floor(buttonX), buttonY)
 
@@ -1793,6 +1828,7 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
         if (not keypad.visible or not keypad.visibleOnScreen) then return end
         for row = 1, keypad.rows + 1 do
             for col = 1, keypad.columns do
+                if (keypad.keypad.buttons[row][col] == nil) then break end
                 keypad.keypad.buttons[row][col].onclick(side, x, y)
             end
         end
@@ -1816,6 +1852,7 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
 
         for row = 1, keypad.rows + 1 do
             for col = 1, keypad.columns do
+                if (keypad.keypad.buttons[row][col] == nil) then break end
                 monitor = keypad.keypad.buttons[row][col].connect(monitor)
             end
         end
@@ -1866,6 +1903,7 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
         keypad.textColor = colors.toBlit(color)
         for row = 1, keypad.rows do
             for col = 1, keypad.columns do
+                if (keypad.keypad.buttons[row][col] == nil) then break end
                 keypad.keypad.buttons[row][col].setColor(colors.fromBlit(keypad.textColor))
             end
         end
