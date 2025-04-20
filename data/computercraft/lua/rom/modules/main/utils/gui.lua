@@ -5,6 +5,12 @@ local m = require("utils.monutils")
 -- A useful GUI library to make working with monitor GUIs easier.
 local guilib = {}
 
+
+-- TODO: Make sure widgets don't clear themselves continuously when set to not visible.
+-- TODO: this causes the space they occupy to be not usable by other widgets.
+
+
+
 function guilib.createButton(text, color, bgcolor, clickedColor)
     local button = {}
     button.text = text
@@ -92,6 +98,7 @@ function guilib.createButton(text, color, bgcolor, clickedColor)
     function button.onclick(side, x, y)
         if (not button.visible) then return end
         if (button.monitor ~= nil) then
+            --print("Clicked at: " .. x .. " " .. y .. "button: " .. button.posX .. " " .. button.posY)
             if (peripheral.getName(button.monitor) == side) then
                 local endX = 0
                 if (button.length > 1) then
@@ -1213,6 +1220,13 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         listView.shouldClear = true
     end
 
+    --- Toggles the visibility of the list view.
+    function listView.setVisible(visible)
+        if (visible == listView.visible) then return end
+        listView.visible = visible
+        listView.shouldClear = true
+    end
+
     --- Adds an item to the list view.
     --- @param item string The text content of the item to add.
     function listView.addItem(item)
@@ -1566,6 +1580,7 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         setClickable = listView.setClickable,
         setShowTotal = listView.setShowTotal,
         setHeaderBackground = listView.setHeaderBackground,
+        setVisible = listView.setVisible,
         getHeader = listView.getHeader,
         getHeaderTextColor = listView.getHeaderTextColor,
         getItemColor = listView.getItemColor,
@@ -1583,6 +1598,393 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         onclick = listView.onclick,
         draw = listView.draw,
         connect = listView.connect
+    }
+end
+
+--- Creates a classic 10 digit keypad with the supplied layout.
+--- @param rows integer The number of rows in the keypad.
+--- @param columns integer The number of columns in the keypad.
+--- @param prompt string The prompt text to display above the keypad.
+--- @param maxLength integer The maximum length of the input.
+--- @param textColor string The color of the text on the buttons.
+--- @param buttonColor string The color of the buttons.
+--- @param promptColor string The color of the prompt background.
+--- @param promptTextColor string The color of the prompt text.
+function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, buttonColor, promptColor, promptTextColor)
+    local keypad = {}
+
+    keypad.rows = rows
+    keypad.columns = columns
+    keypad.length = maxLength
+
+    keypad.prompt = prompt
+    keypad.textColor = colors.toBlit(textColor)
+    keypad.buttonColor = colors.toBlit(buttonColor)
+    keypad.promptTextColor = colors.toBlit(promptTextColor)
+    keypad.promptColor = colors.toBlit(promptColor)
+
+    keypad.positions = {
+        buttons = {},
+        label = { startX = 0, endX = 0, y = 0 },
+        prompt = { startX = 0, endX = 0, y = 0 }
+    }
+
+    keypad.keypad = {
+        buttons = {}
+    }
+    for i = 1, rows do
+        keypad.keypad.buttons[i] = {}
+    end
+
+
+    keypad.currentInput = ""
+    keypad.onSubmit = function(passcode) end
+
+
+    keypad.shouldClear = true
+    keypad.shouldRefresh = true
+    keypad.visible = true
+    keypad.visibleOnScreen = true
+
+
+    -- Create the buttons and prompts
+    local buttonIndex = 1
+    for row = 1, rows do
+        for col = 1, columns do
+            local button = guilib.createButton(tostring(buttonIndex), colors.fromBlit(keypad.textColor),
+                colors.fromBlit(keypad.buttonColor),
+                colors.white)
+
+            button.setAction(function()
+                if (keypad.currentInput:len() >= keypad.length) then return end
+                keypad.currentInput = keypad.currentInput .. button.getText()
+                keypad.shouldRefresh = true
+            end)
+
+            keypad.keypad.buttons[row][col] = button
+            if (buttonIndex == 9) then
+                break
+            end
+            buttonIndex = buttonIndex + 1
+        end
+    end
+
+    -- Create the '0', 'delete' and 'submit' buttons.
+    local specialButtonIndex = 1
+    keypad.keypad.buttons[rows + 1] = {}
+    for row = rows + 1, rows + 1 do
+        for col = 1, columns do
+            local button = guilib.createButton("", colors.fromBlit(keypad.textColor),
+                colors.fromBlit(keypad.buttonColor),
+                colors.white)
+
+            if (specialButtonIndex == 1) then
+                button.setText("0")
+                button.setAction(function()
+                    if (keypad.currentInput:len() >= keypad.length) then return end
+                    keypad.currentInput = keypad.currentInput .. button.getText()
+                    keypad.shouldRefresh = true
+                end)
+            elseif (specialButtonIndex == 2) then
+                button.setText("\171")
+                button.setBackgroundColor(colors.red)
+                button.setAction(function()
+                    if (keypad.currentInput:len() <= 1) then
+                        keypad.currentInput = ""
+                        keypad.shouldRefresh = true
+                        return
+                    end
+                    keypad.currentInput = string.sub(keypad.currentInput, 1, keypad.currentInput:len() - 1)
+                    keypad.shouldRefresh = true
+                end)
+            elseif (specialButtonIndex == 3) then
+                button.setText("\26")
+                button.setBackgroundColor(colors.green)
+                button.setAction(function()
+                    if (keypad.currentInput:len() == 0) then return end
+                    keypad.onSubmit(keypad.currentInput)
+                    keypad.currentInput = ""
+                    keypad.shouldRefresh = true
+                end)
+            end
+            keypad.keypad.buttons[row][col] = button
+            specialButtonIndex = specialButtonIndex + 1
+        end
+    end
+
+    -- Create the prompt and label
+    keypad.keypad.prompt = guilib.createLabel(string.rep("-", keypad.length), colors.fromBlit(keypad.promptTextColor),
+        colors.fromBlit(keypad.promptColor))
+    keypad.keypad.promptLabel = guilib.createLabel(keypad.prompt, colors.fromBlit(keypad.promptTextColor),
+        colors.black)
+
+    function keypad.draw(mon, x, y)
+        local prevX, prevY = mon.getCursorPos()
+        local monWidth, monHeight = mon.getSize()
+
+        local yOffset = 3
+
+        local centerX = x + (keypad.keypad.promptLabel.getTextLength() / 2)
+        local rowWidth = (keypad.columns * 2 - 1)
+
+        if (keypad.shouldClear or keypad.shouldRefresh) then
+            if (keypad.shouldClear) then
+                m.clearBetween(mon, keypad.positions.prompt.startX, keypad.positions.prompt.endX,
+                    keypad.positions.prompt.y)
+                m.clearBetween(mon, keypad.positions.label.startX, keypad.positions.label.endX, keypad.positions.label.y)
+                keypad.shouldClear = false
+            end
+
+            -- Clear all buttons
+            for index, data in pairs(keypad.positions.buttons) do
+                if (data ~= nil) then
+                    m.clearBetween(mon, data.startX, data.endX, data.y)
+                end
+            end
+            keypad.visibleOnScreen = false
+        end
+
+        if (keypad.visible) then
+            keypad.keypad.prompt.setText(keypad.currentInput ..
+                string.rep("-", keypad.length - keypad.currentInput:len()))
+
+            -- Draw the prompt
+            keypad.keypad.promptLabel.draw(mon, x, y)
+            keypad.keypad.prompt.draw(mon, centerX - (keypad.keypad.prompt.getTextLength() / 2), y + 1)
+
+            keypad.positions.prompt = {
+                startX = centerX - (keypad.keypad.prompt.getTextLength() / 2),
+                endX = centerX + (keypad.keypad.prompt.getTextLength() / 2),
+                y = y + 1
+            }
+
+            keypad.positions.label = {
+                startX = x,
+                endX = x + keypad.keypad.promptLabel.getTextLength(),
+                y = y
+            }
+
+            for row = 1, keypad.rows + 1 do
+                for col = 1, keypad.columns do
+                    local start = centerX - rowWidth / 2
+
+                    local buttonX = (start + (col - 1) * 2)
+                    local buttonY = (y + yOffset) + (row - 1)
+
+                    -- Draw the button
+                    keypad.keypad.buttons[row][col].draw(mon, math.floor(buttonX), buttonY)
+
+                    table.insert(keypad.positions.buttons, {
+                        startX = buttonX,
+                        endX = buttonX,
+                        y = buttonY
+                    })
+                end
+            end
+            keypad.shouldClear = false
+            keypad.shouldRefresh = false
+            keypad.visibleOnScreen = true
+        end
+
+        mon.setCursorPos(prevX, prevY)
+    end
+
+    function keypad.onclick(side, x, y)
+        if (not keypad.visible or not keypad.visibleOnScreen) then return end
+        for row = 1, keypad.rows + 1 do
+            for col = 1, keypad.columns do
+                keypad.keypad.buttons[row][col].onclick(side, x, y)
+            end
+        end
+    end
+
+    function keypad.connect(monitor)
+        local old_clear = monitor.clear
+        monitor.clear = function()
+            keypad.visibleOnScreen = false
+            old_clear()
+        end
+
+        local old_clearline = monitor.clearLine
+        monitor.clearLine = function()
+            local x, y = monitor.getCursorPos()
+            if (y >= keypad.positions.label.y and y <= keypad.positions.label.y + 3 + rows) then
+                keypad.visibleOnScreen = false
+            end
+            old_clearline()
+        end
+
+        for row = 1, keypad.rows + 1 do
+            for col = 1, keypad.columns do
+                monitor = keypad.keypad.buttons[row][col].connect(monitor)
+            end
+        end
+
+        return monitor
+    end
+
+    function keypad.setOnSubmit(func)
+        keypad.onSubmit = function(passcode)
+            func(passcode)
+        end
+    end
+
+    --- Sets the prompt text of the keypad.
+    --- @param prompt string The new prompt text.
+    function keypad.setPrompt(prompt)
+        if (prompt == keypad.prompt) then return end
+        keypad.prompt = prompt
+        keypad.keypad.promptLabel.setText(keypad.prompt)
+        keypad.shouldClear = true
+    end
+
+    --- Gets the prompt text of the keypad.
+    --- @return string The current prompt text.
+    function keypad.getPrompt()
+        return keypad.prompt
+    end
+
+    --- Sets the maximum length of the keypad input.
+    --- @param length integer The maximum input length.
+    function keypad.setMaxLength(length)
+        if (length == keypad.length) then return end
+        keypad.length = length
+        keypad.currentInput = ""
+        keypad.shouldClear = true
+    end
+
+    --- Gets the maximum length of the keypad input.
+    --- @return integer The maximum input length.
+    function keypad.getMaxLength()
+        return keypad.length
+    end
+
+    --- Sets the text color of the keypad buttons.
+    --- @param color color The new text color.
+    function keypad.setTextColor(color)
+        if (colors.toBlit(color) == keypad.textColor) then return end
+        keypad.textColor = colors.toBlit(color)
+        for row = 1, keypad.rows do
+            for col = 1, keypad.columns do
+                keypad.keypad.buttons[row][col].setColor(colors.fromBlit(keypad.textColor))
+            end
+        end
+        keypad.shouldRefresh = true
+    end
+
+    --- Gets the text color of the keypad buttons.
+    --- @return color The current text color.
+    function keypad.getTextColor()
+        return colors.fromBlit(keypad.textColor)
+    end
+
+    --- Sets the background color of the keypad buttons.
+    --- @param color color The new background color.
+    function keypad.setButtonColor(color)
+        if (colors.toBlit(color) == keypad.buttonColor) then return end
+        keypad.buttonColor = colors.toBlit(color)
+        for row = 1, keypad.rows do
+            for col = 1, keypad.columns do
+                keypad.keypad.buttons[row][col].setBackground(colors.fromBlit(keypad.buttonColor))
+            end
+        end
+        keypad.shouldRefresh = true
+    end
+
+    --- Gets the background color of the keypad buttons.
+    --- @return color The current background color.
+    function keypad.getButtonColor()
+        return colors.fromBlit(keypad.buttonColor)
+    end
+
+    --- Sets the background color of the keypad prompt.
+    --- @param color color The new prompt background color.
+    function keypad.setPromptColor(color)
+        if (colors.toBlit(color) == keypad.promptColor) then return end
+        keypad.promptColor = colors.toBlit(color)
+        keypad.keypad.prompt.setBackgroundColor(colors.fromBlit(keypad.promptColor))
+        keypad.shouldRefresh = true
+    end
+
+    --- Gets the background color of the keypad prompt.
+    --- @return color color The current prompt background color.
+    function keypad.getPromptColor()
+        return colors.fromBlit(keypad.promptColor)
+    end
+
+    --- Sets the text color of the keypad prompt.
+    --- @param color color The new prompt text color.
+    function keypad.setPromptTextColor(color)
+        if (colors.toBlit(color) == keypad.promptTextColor) then return end
+        keypad.promptTextColor = colors.toBlit(color)
+        keypad.keypad.prompt.setColor(colors.fromBlit(keypad.promptTextColor))
+        keypad.keypad.promptLabel.setColor(colors.fromBlit(keypad.promptTextColor))
+        keypad.shouldRefresh = true
+    end
+
+    --- Gets the text color of the keypad prompt.
+    --- @return color The current prompt text color.
+    function keypad.getPromptTextColor()
+        return colors.fromBlit(keypad.promptTextColor)
+    end
+
+    --- Sets the visibility of the keypad.
+    --- @param visible boolean Whether the keypad should be visible.
+    function keypad.setVisible(visible)
+        if (visible == keypad.visible) then return end
+        keypad.visible = visible
+        keypad.shouldClear = true
+    end
+
+    --- Gets the visibility of the keypad.
+    --- @return boolean visible Whether the keypad is visible.
+    function keypad.isVisible()
+        return keypad.visible
+    end
+
+    function keypad.setRows(rows)
+        if (rows == keypad.rows) then return end
+        keypad.rows = rows
+        keypad.shouldClear = true
+    end
+
+    function keypad.setColumns(columns)
+        if (columns == keypad.columns) then return end
+        keypad.columns = columns
+        keypad.shouldClear = true
+    end
+
+    function keypad.getRows()
+        return keypad.rows
+    end
+
+    function keypad.getColumns()
+        return keypad.columns
+    end
+
+    return {
+        draw = keypad.draw,
+        onclick = keypad.onclick,
+        connect = keypad.connect,
+        setOnSubmit = keypad.setOnSubmit,
+        setPrompt = keypad.setPrompt,
+        getPrompt = keypad.getPrompt,
+        setMaxLength = keypad.setMaxLength,
+        getMaxLength = keypad.getMaxLength,
+        setTextColor = keypad.setTextColor,
+        getTextColor = keypad.getTextColor,
+        setButtonColor = keypad.setButtonColor,
+        getButtonColor = keypad.getButtonColor,
+        setPromptColor = keypad.setPromptColor,
+        getPromptColor = keypad.getPromptColor,
+        setPromptTextColor = keypad.setPromptTextColor,
+        getPromptTextColor = keypad.getPromptTextColor,
+        setRows = keypad.setRows,
+        getRows = keypad.getRows,
+        setColumns = keypad.setColumns,
+        getColumns = keypad.getColumns,
+        setVisible = keypad.setVisible,
+        isVisible = keypad.isVisible,
     }
 end
 

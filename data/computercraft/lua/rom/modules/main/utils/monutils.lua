@@ -60,6 +60,17 @@ function monutils.clearLine(mon, line)
     mon.setCursorPos(prevX, prevY)
 end
 
+function monutils.clearBetween(mon, startX, endX, y)
+    local prevX, prevY = mon.getCursorPos()
+    local bgColor = mon.getBackgroundColor()
+
+    for x = startX, endX, 1 do
+        monutils.blit(mon, " ", x, y, bgColor, bgColor)
+    end
+
+    mon.setCursorPos(prevX, prevY)
+end
+
 function monutils.clearFrom(mon, startLine)
     if (mon == nil) then
         l.error("Monitor is nil", "GUI")
