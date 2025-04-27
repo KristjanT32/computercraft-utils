@@ -6,12 +6,6 @@ local l = require("utils.logging")
 -- A useful GUI library to make working with monitor GUIs easier.
 local guilib = {}
 
-
--- TODO: Make sure widgets don't clear themselves continuously when set to not visible.
--- TODO: this causes the space they occupy to be not usable by other widgets.
-
-
-
 function guilib.createButton(text, color, bgcolor, clickedColor)
     local button = {}
     button.text = text
@@ -121,19 +115,23 @@ function guilib.createButton(text, color, bgcolor, clickedColor)
         end
     end
 
+    function button.clear(mon, x, y)
+        if (button.prevX ~= nil) then
+            for _x = button.prevX, (button.prevLength + button.prevX) - 1, 1 do
+                mon.setCursorPos(_x, y)
+                mon.blit("|", colors.toBlit(mon.getBackgroundColor()), colors.toBlit(mon.getBackgroundColor()))
+            end
+        end
+        button.visibleOnScreen = false
+        button.shouldClear = false
+    end
+
     function button.draw(mon, x, y)
         local prevX, prevY = mon.getCursorPos()
 
         -- Clear everything in the area the button was last time, if required
         if (button.shouldClear) then
-            if (button.prevX ~= nil) then
-                for _x = button.prevX, (button.prevLength + button.prevX) - 1, 1 do
-                    mon.setCursorPos(_x, y)
-                    mon.blit("|", colors.toBlit(mon.getBackgroundColor()), colors.toBlit(mon.getBackgroundColor()))
-                end
-            end
-            button.visibleOnScreen = false
-            button.shouldClear = false
+            button.clear(mon, x, y)
         end
 
         if (button.visible) then
@@ -249,18 +247,22 @@ function guilib.createLabel(text, color, bgcolor)
         label.shouldClear = true
     end
 
+    function label.clear(mon, x, y)
+        if (label.prevX ~= nil) then
+            for _x = label.prevX, (label.prevLength + label.prevX) - 1, 1 do
+                mon.setCursorPos(_x, y)
+                mon.blit("|", colors.toBlit(mon.getBackgroundColor()), colors.toBlit(mon.getBackgroundColor()))
+            end
+        end
+        label.shouldClear = false
+    end
+
     function label.draw(mon, x, y)
         local prevX, prevY = mon.getCursorPos()
 
         -- Clear everything in the area the label was last time, if required
         if (label.shouldClear) then
-            if (label.prevX ~= nil) then
-                for _x = label.prevX, (label.prevLength + label.prevX) - 1, 1 do
-                    mon.setCursorPos(_x, y)
-                    mon.blit("|", colors.toBlit(mon.getBackgroundColor()), colors.toBlit(mon.getBackgroundColor()))
-                end
-            end
-            label.shouldClear = false
+            label.clear(mon, x, y)
         end
 
         if (label.visible) then
@@ -649,9 +651,9 @@ function guilib.createLimitedProgressbar(val, max, fillColor, bgColor)
 
         -- Clear everything between from_x and to_x
         if (progressbar.shouldClear) then
-            for _x = from_x, 1, to_x + 1 do
+            for _x = from_x, to_x, 1 do
                 mon.setCursorPos(_x, y)
-                mon.write("")
+                m.blit(mon, "|", _x, y, mon.getBackgroundColor(), mon.getBackgroundColor())
             end
 
             mon.setCursorPos(from_x, y)
@@ -1264,7 +1266,7 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
     end
 
     --- Clears the list view and causes a redraw.
-    function listView.clear()
+    function listView.requestClear()
         listView.items = {}
         listView.itemPositions = {}
         listView.scrollPosition = 1
@@ -1595,7 +1597,7 @@ function guilib.createListView(header, headerTextColor, headerBackground, itemTe
         addItem = listView.addItem,
         removeItem = listView.removeItem,
         getItemIndex = listView.getItemIndex,
-        clear = listView.clear,
+        clear = listView.requestClear,
         onclick = listView.onclick,
         draw = listView.draw,
         connect = listView.connect
@@ -1744,7 +1746,7 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
         local prevX, prevY = mon.getCursorPos()
         local monWidth, monHeight = mon.getSize()
 
-        local yOffset = 3
+        local yOffset = 4
 
         local centerX = x + (keypad.keypad.promptLabel.getTextLength() / 2)
         local rowWidth = (keypad.columns * 2 - 1)
@@ -1755,19 +1757,19 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
                     keypad.positions.prompt.y)
                 m.clearBetween(mon, keypad.positions.label.startX, keypad.positions.label.endX, keypad.positions.label.y)
 
-                for y = y + 1, y + yOffset + (keypad.columns - 1), 1 do
-                    m.clearBetween(mon, x, x + rowWidth, y)
+                for _y = y + 1, y + yOffset + keypad.rows + 1, 1 do
+                    m.clearBetween(mon, centerX - (rowWidth / 2 + 2), (centerX + rowWidth / 2) + 2, _y)
+                end
+
+                -- Clear all buttons
+                for index, data in pairs(keypad.positions.buttons) do
+                    if (data ~= nil) then
+                        m.clearBetween(mon, data.startX, data.endX, data.y)
+                    end
                 end
                 keypad.shouldClear = false
+                keypad.visibleOnScreen = false
             end
-
-            -- Clear all buttons
-            for index, data in pairs(keypad.positions.buttons) do
-                if (data ~= nil) then
-                    m.clearBetween(mon, data.startX, data.endX, data.y)
-                end
-            end
-            keypad.visibleOnScreen = false
         end
 
         if (keypad.visible) then
@@ -1784,12 +1786,12 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
 
             -- Draw the prompt
             keypad.keypad.promptLabel.draw(mon, x, y)
-            keypad.keypad.prompt.draw(mon, centerX - (keypad.keypad.prompt.getTextLength() / 2), y + 1)
+            keypad.keypad.prompt.draw(mon, centerX - (keypad.keypad.prompt.getTextLength() / 2), y + 2)
 
             keypad.positions.prompt = {
                 startX = centerX - (keypad.keypad.prompt.getTextLength() / 2),
                 endX = centerX + (keypad.keypad.prompt.getTextLength() / 2),
-                y = y + 1
+                y = y + 2
             }
 
             keypad.positions.label = {
@@ -1998,6 +2000,12 @@ function guilib.createKeyPad(rows, columns, maxLength, prompt, textColor, button
 
     function keypad.getColumns()
         return keypad.columns
+    end
+
+    function keypad.setLabelShown(shown)
+        if (shown == keypad.keypad.promptLabel.isVisible()) then return end
+        keypad.keypad.promptLabel.setVisible(shown)
+        keypad.shouldClear = true
     end
 
     return {
