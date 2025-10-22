@@ -583,10 +583,10 @@ function _host.create_host(monitor_side, modem_side, name)
 
         term.clear()
         host.monitor.clear()
-        host.board_discovery()
         if (immediate_start) then
             host.run()
         end
+        host.board_discovery()
         sleep(1)
     end
 

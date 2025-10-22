@@ -1,6 +1,7 @@
 --- @diagnostic disable
 
 function len(str)
+    if str == nil then return 0 end
     return string.len(str)
 end
 

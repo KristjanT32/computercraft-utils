@@ -109,7 +109,13 @@ function guilib.createButton(text, color, bgcolor, clickedColor)
                     button.setBackground(colors.fromBlit(prevColor))
                     button.draw(button.monitor, button.posX, button.posY)
 
-                    button.onAction()
+                    local success, error = pcall(function (...)
+                        button.onAction()
+                    end)
+
+                    if (not success) then
+                        l.fatal("Callback failed on '" .. button.getText() .. "': " .. error)
+                    end
                 end
             end
         end
