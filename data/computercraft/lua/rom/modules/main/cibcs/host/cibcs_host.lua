@@ -126,7 +126,7 @@ function _host.create_host(monitor_side, modem_side, name)
 
     -- The text object that represents the currently displayed text on the boards.
     host.data.currentText = {
-
+        
     }
 
     utils.persistence.save_data(host.data, "cibcs", "hostdata/host" .. host.id)

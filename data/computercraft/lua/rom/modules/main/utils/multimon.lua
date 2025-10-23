@@ -5,7 +5,7 @@ local MultiMon = {}
 ---@type table<monitor> The table of all monitors controlled by the instance.
 MultiMon.monitors = {}
 
----Creates a multimon instance
+---Creates a MultiMon instance
 ---@return MultiMon instance 
 function MultiMon:create()
     instance = {}
@@ -22,7 +22,8 @@ function MultiMon:register(...)
     self.monitors = {...}
 end
 
-
+--- Registers the supplied monitors by first wrapping them using `peripheral.wrap`.
+---@param ... string The names of the peripherals (monitors) to register
 function MultiMon:wrap_all(...)
     for _, name in ipairs({...}) do
         local success, result = pcall(peripheral.wrap, name)
@@ -92,6 +93,28 @@ end
 ---@param y integer The row
 function MultiMon:setCursorPos(x, y)
     self:call_each("setCursorPos", x, y)
+end
+
+--- Sets the text color for all managed monitors.
+---@param color color The new text color
+function MultiMon:setTextColor(color)
+    self:call_each("setTextColor", color)
+end
+
+--- Sets the cursor position to `(x, y)` and writes `text` on all of the managed monitors.
+---@param text string The text to write
+---@param x integer The column
+---@param y integer The row
+function MultiMon:write(text, x, y)
+    self:setCursorPos(x, y)
+    self:call_each("write", text)
+end
+
+--- Writes `text` on the supplied line on all managed monitors.
+---@param text string The text to write
+---@param line integer The line number
+function MultiMon:writeLine(text, line)
+    self:write(text, 1, line)
 end
 
 --- Returns a table of all managed monitors.
