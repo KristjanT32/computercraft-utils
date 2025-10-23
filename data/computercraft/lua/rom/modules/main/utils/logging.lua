@@ -7,6 +7,7 @@ local logging = {}
 function logging.log(module, type, msg)
     local terminal = term.current()
     local prevColor = terminal.getTextColor()
+    if module == "" then module = "PROGRAM" end
 
     if (string.lower(type) == "info") then
         terminal.setTextColor(colors.green)
